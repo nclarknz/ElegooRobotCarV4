@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import time
 
 #%% Clear working space
-get_ipython().magic('clear')
-get_ipython().magic('reset -f')
+# get_ipython().magic('clear')
+# get_ipython().magic('reset -f')
 plt.close('all')
 
 #%% Capture image from camera
@@ -98,7 +98,7 @@ ag = np.empty([0, 6])
 ag_name = ['ax', 'ay', 'az', 'gx', 'gy', 'gz']
 fig = plt.figure()
 mgr = plt.get_current_fig_manager()
-mgr.window.setGeometry(800, 30, 1120, 650) # x, y, dx, dy, valid only for Qt5
+#mgr.window.setGeometry(800, 30, 1120, 650) # x, y, dx, dy, valid only for Qt5
 def plt_update(mot):
     global ag
     ag = np.vstack((ag, mot))
