@@ -18,19 +18,29 @@ plt.close('all')
 
 #%% Capture image from camera
 cv.namedWindow('Camera')
-cv.moveWindow('Camera', 0, 0)
+cv.moveWindow('Camera', 10, 10)
 cmd_no = 0
+
 def capture():
     global cmd_no
     cmd_no += 1
     print(str(cmd_no) + ': capture image')
-    cam = urlopen('http://192.168.4.1/capture')
-    img = cam.read()
-    img = np.asarray(bytearray(img), dtype = 'uint8')
-    img = cv.imdecode(img, cv.IMREAD_UNCHANGED)
-    cv.imshow('Camera', img)
-    # cv.waitKey(1)
-    return img
+    # cam = urlopen('http://192.168.4.1/capture')
+    # img = cam.read()
+    # img = np.asarray(bytearray(img), dtype = 'uint8')
+    # img = cv.imdecode(img, cv.IMREAD_UNCHANGED)
+    url_response = urlopen('http://192.168.4.1/capture')
+    img_array = np.array(bytearray(url_response.read()), dtype=np.uint8)
+    img = cv.imdecode(img_array, -1)
+    try:
+        cv.imshow('Camera', img)
+        cv.waitKey(1) & 0xFF == ord('0')
+        #plt.ion()
+        #plt.imshow(img)
+    except:
+        print('Error: ', sys.exc_info()[0])
+    #cv.waitKey(0)
+    #return img
 
 #%% Send a command and receive a response
 off = [0.007,  0.022,  0.091,  0.012, -0.011, -0.05]
@@ -71,14 +81,32 @@ def cmd(sock, do, what = '', where = '', at = ''):
     print(str(cmd_no) + ': ' + do + what + where + str(at), end = ': ')
     try:
         sock.send(msg_json.encode())
+    except socket.error:
+        print("Socket error", sys.exc_info()[0])
+        car.close()
+        connectcar()
+        return 0
     except:
         print('Error: ', sys.exc_info()[0])
         sys.exit()
     while 1:
-        res = sock.recv(1024).decode()
-        if '_' in res:
+        try:
+            res = sock.recv(1024).decode()
+            if not res:
+                print('No data received')
+                break
+            if '_' in res:
+                break
+        except:
+            print('Probably disconnected ', sys.exc_info()[0])
+            #connectcar()
             break
-    res = re.search('_(.*)}', res).group(1)
+    print('res is ', res)
+    if len(res) == 0:
+        res = 0
+    else:
+        res = re.search('_(.*)}', res).group(1)
+    
     if res == 'ok' or res == 'true':
         res = 1
     elif res == 'false':
@@ -88,17 +116,19 @@ def cmd(sock, do, what = '', where = '', at = ''):
         res = [int(x)/16384 for x in res] # convert to units of g
         res[2] = res[2] - 1 # subtract 1G from az
         res = [round(res[i] - off[i], 4) for i in range(6)]
+    elif not isinstance(res, int):
+        res = 0
     else:
         res = int(res)
-    print(res)
     return res
 
 #%% Plot MPU data
 ag = np.empty([0, 6])
 ag_name = ['ax', 'ay', 'az', 'gx', 'gy', 'gz']
-fig = plt.figure()
-mgr = plt.get_current_fig_manager()
+# fig = plt.figure()
+# mgr = plt.get_current_fig_manager()
 #mgr.window.setGeometry(800, 30, 1120, 650) # x, y, dx, dy, valid only for Qt5
+
 def plt_update(mot):
     global ag
     ag = np.vstack((ag, mot))
@@ -110,44 +140,57 @@ def plt_update(mot):
     plt.show()
 
 #%% Connect to car's WiFi
-ip = "192.168.4.1"
-port = 100
-print('Connect to {0}:{1}'.format(ip, port))
-car = socket.socket()
-try:
-    car.connect((ip, port))
-except:
-    print('Error: ', sys.exc_info()[0])
-    sys.exit()
-print('Connected!')
+def connectcar():
+    global car
 
-#%% Read first data from socket
-print('Receive from {0}:{1}'.format(ip, port))
-try:
-    data = car.recv(1024).decode()
-except:
-    print('Error: ', sys.exc_info()[0])
-    sys.exit()
-print('Received: ', data)
+    ip = "192.168.4.1"
+    port = 100
+    print('Connect to {0}:{1}'.format(ip, port))
+    car = socket.socket()
+    try:
+        car.connect((ip, port))
+    except:
+        print('Error: ', sys.exc_info()[0])
+        sys.exit()
+    print('Connected!')
+
+    #%% Read first data from socket
+    print('Receive from {0}:{1}'.format(ip, port))
+    try:
+        data = car.recv(1024).decode()
+    except:
+        print('Error: ', sys.exc_info()[0])
+        sys.exit()
+    print('Received: ', data)
+
+
+connectcar()
 
 #%% Main
 speed = 150
 ang = [90, 10, 170]
 dist = [0, 0, 0]
 dist_min = 30
+print('Do cmd')
 cmd(car, do = 'rotate', at = 90)
 while 1:
     start_time = time.time()
     # Capture camera image
     capture()
     # Check if car was lifted off the ground to interrupt the while loop
-    if cmd(car, do = 'check'):
-        break
+    # if cmd(car, do = 'check'):
+    #     print('Car off ground')
+    #     break
     # Get MPU data and plot it
-    mot = cmd(car, do = 'measure', what = 'motion')
-    plt_update(mot)
+
+    # mot = cmd(car, do = 'measure', what = 'motion')
+    # print('Measure Motion Return')
+    # print(mot)
+    # plt_update(mot)
     # Check distance to obstacle
     dist[0] = cmd(car, do = 'measure', what = 'distance')
+    print("dist0 is",dist[0])
+    
     if dist[0] <= dist_min:
         # Detected an obstacle, stop
         cmd(car, do = 'stop')
