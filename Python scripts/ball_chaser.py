@@ -180,6 +180,7 @@ dist = [0, 0, 0]    # measured distances to obstacles at rotation angles
 dist_min = 30       # min distance to obstacle (cm)
 d180 = 90           # eq rotation distance for 180 deg turn
 dturn = 60          # eq rotation distance for smaller than 180 deg turns
+
 def find_ball():
     time.sleep(0.5)
     found = 0
